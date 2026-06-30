@@ -1,4 +1,10 @@
-# Byte-compiled / optimized / DLL files
+#Dataset
+data/
+
+# vscode venv
+.multimedia/
+
+#< Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
 *$py.class
