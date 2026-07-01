@@ -1,5 +1,6 @@
 #Dataset
-data/
+data/fruits-360-original-size
+data/extracted_features
 
 # vscode venv
 .multimedia/

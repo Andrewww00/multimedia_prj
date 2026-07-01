@@ -9,10 +9,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 TRAIN_PATH = BASE_DIR / "data" /  "fruits-360-original-size" / "Training"
 TEST_PATH = BASE_DIR / "data" / "fruits-360-original-size" / "Test"
 VAL_PATH = BASE_DIR / "data" /  "fruits-360-original-size" / "Validation"
-
-# print("\nIl train path è:\n", TRAIN_PATH)
-# print("\nIl test path è:\n", TEST_PATH)
-# print("\nIl val path è:\n", VAL_PATH)
+FEATURES_DIR = BASE_DIR / "data" / "extracted_features"
 
 def extract_features_ML(img_path, new_shape=(100,100), color=255, bins=[32, 32, 32]):
     
@@ -102,51 +99,53 @@ def load_process_dataset(dataset_path):
             
     return np.array(X), np.array(y)
 
-# def plot(title="Immagine ridimensionata", new_shape=(100,100), color=255):
-#     img_path = r"C:\Users\andri\Desktop\Fruits-Classifier\data\fruits-360-original-size\Training\Apple 11\r0_2.jpg"
-    
-#     """--- 0. LETTURA DELLE IMMAGINI ---"""
-#     img = cv2.imread(img_path)
-#     # Controllo che l'immagine sia stata letta correttamente
-#     if img is None:
-#         raise ValueError(f"Impossibile leggere {img_path}")
+def validate(file_path):
+        try:
+            data = np.load(file_path)
+            _ = data["X"]
+            return True
+        except Exception:
+            file_path.unlink(missing_ok=True)
+            return False
 
-#     """--- 1. RIDIMENSIONAMENTO ---"""
-#     # Inserisco la width e la height dell'immagine in 2 variabili separate
-#     height, width = img.shape[:2]
+def save_features():
+    """
+    Estrae le feature dai dataset Train, Test e Validation e le salva
+    in formato .npz. Se un file è già presente, non viene rigenerato.
+    """
+    FEATURES_DIR.mkdir(parents=True, exist_ok=True)
 
-#     # Calcolo il fattore di scala per mantenere le proporzioni dell'immagine
-#     w_new, h_new = new_shape
-#     scale_factor = min(w_new / width, h_new / height)
-#     h_scaled = int(height * scale_factor)
-#     w_scaled = int(width * scale_factor)
+    train_file = FEATURES_DIR / "train_features.npz"
+    test_file = FEATURES_DIR / "test_features.npz"
+    val_file = FEATURES_DIR / "validation_features.npz"
 
-#     # Dopo il resize l'immagine ha shape (91, 100, 3)
-#     img_resized = cv2.resize(img, (w_scaled, h_scaled))
-#     #print(img_resized.shape)
+    dataset_paths = [TRAIN_PATH, TEST_PATH, VAL_PATH]
+    file_names = [train_file, test_file, val_file]
+    names = ["Train", "Test", "Validation"]
 
-#     """--- 2. PADDING ---"""
-#     # Padding per ottenere le dimensioni desiderate
-#     canvas = np.full((h_new, w_new, 3), color, dtype=np.uint8) 
+    # controllo esistenza dataset
+    for path in dataset_paths:
+        if not path.exists():
+            raise FileNotFoundError(path)
 
-#     # Centro l'immagine calcolando l'offset
-#     top = (h_new - h_scaled) // 2
-#     left = (w_new - w_scaled) //2
+    feature_created = False
 
-#     # Metto l'immagine al centro
-#     # Dopo questa operazione la shape risulta (100, 100, 3)
-#     canvas[
-#             top:top + h_scaled,
-#             left:left + w_scaled
-#         ] = img_resized
+    for dataset_path, file_path, name in zip(dataset_paths, file_names, names):
+        if file_path.exists() and validate(file_path):
+            print(f"{name} già presente")
+            continue
 
-#     plt.imshow(canvas)
-#     if title:
-#         plt.title(title)
-#     plt.axis("off")
-#     plt.show()
+        X, y = load_process_dataset(dataset_path)
+        if len(X) == 0:
+            raise RuntimeError(f"{name} set vuoto")
 
-#plot()
-X, y = load_process_dataset(TEST_PATH)
-print(X.shape)
-print(y.shape)
+        np.savez_compressed(file_path, X=X, y=y)
+        print(f"{name} salvato: {X.shape}")
+        feature_created = True
+
+    if feature_created:
+        print("Estrazione completata!")
+    else:
+        print("Features già salvate!")
+
+save_features()
