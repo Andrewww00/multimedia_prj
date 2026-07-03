@@ -1,11 +1,9 @@
 import cv2
-from tqdm import tqdm
 import numpy as np
+from tqdm import tqdm
 from pathlib import Path
-import matplotlib.pyplot as plt
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-
 TRAIN_PATH = BASE_DIR / "data" /  "fruits-360-original-size" / "Training"
 TEST_PATH = BASE_DIR / "data" / "fruits-360-original-size" / "Test"
 VAL_PATH = BASE_DIR / "data" /  "fruits-360-original-size" / "Validation"
@@ -28,10 +26,8 @@ def extract_features_ML(img_path, new_shape=(100,100), color=255, bins=[32, 32, 
     scale_factor = min(w_new / width, h_new / height)
     h_scaled = int(height * scale_factor)
     w_scaled = int(width * scale_factor)
-
     # Dopo il resize l'immagine ha shape (91, 100, 3)
     img_resized = cv2.resize(img, (w_scaled, h_scaled))
-    #print(img_resized.shape)
 
     """--- 2. PADDING ---"""
     # Padding per ottenere le dimensioni desiderate
@@ -47,8 +43,6 @@ def extract_features_ML(img_path, new_shape=(100,100), color=255, bins=[32, 32, 
             top:top + h_scaled,
             left:left + w_scaled
         ] = img_resized
-
-    #print(canvas.shape)
     
     """--- 3. CONVERSIONE DA BGR A HSV ---"""
     # Conversione da BGR a HSV
@@ -60,7 +54,7 @@ def extract_features_ML(img_path, new_shape=(100,100), color=255, bins=[32, 32, 
     # Canale S (Saturazione): i valori vanno da 0 a 256
     hist_s = cv2.calcHist([hsv_img], [1], None, [bins[1]], [0, 256])
     
-    # Canale V (Valore/Luminosità): i valori vanno da 0 a 256
+    # Canale V (Luminosità): i valori vanno da 0 a 256
     hist_v = cv2.calcHist([hsv_img], [2], None, [bins[2]], [0, 256])
 
     feature_vector = np.concatenate([hist_h, hist_s, hist_v]).flatten()
@@ -78,10 +72,10 @@ def load_process_dataset(dataset_path):
     y = [] 
     dataset_dir = Path(dataset_path)
     
-    # Estraiamo tutte le cartelle delle classi (escludendo eventuali file sparsi)
+    # Estraiamo tutte le cartelle delle classi
     class_folders = [f for f in dataset_dir.iterdir() if f.is_dir()]
     
-    print(f"Trovate {len(class_folders)} classi. Inizio l'estrazione...")
+    print(f"\nTrovate {len(class_folders)} classi. Inizio l'estrazione...")
     
     for folder in tqdm(class_folders):
         label = folder.name
@@ -91,7 +85,6 @@ def load_process_dataset(dataset_path):
             if img_path.suffix.lower() not in ['.jpg', '.jpeg', '.png']:
                 continue
             
-            # Qui chiameremo il nostro "motore" (Livello Micro) passandogli il percorso come stringa
             features = extract_features_ML(str(img_path))
             
             X.append(features)
@@ -100,13 +93,15 @@ def load_process_dataset(dataset_path):
     return np.array(X), np.array(y)
 
 def validate(file_path):
-        try:
-            data = np.load(file_path)
+    try:
+        with np.load(file_path) as data:
             _ = data["X"]
-            return True
-        except Exception:
-            file_path.unlink(missing_ok=True)
-            return False
+            _ = data["y"]
+        return True
+    except Exception as e:
+        print(f"\nIl file: {file_path.name} e' corrotto. Rigenerazione...")
+        file_path.unlink(missing_ok=True)
+        return False
 
 def save_features():
     """
@@ -130,14 +125,15 @@ def save_features():
 
     feature_created = False
 
+    # Controllo esistenza file features e che non siano corrotti
     for dataset_path, file_path, name in zip(dataset_paths, file_names, names):
         if file_path.exists() and validate(file_path):
-            print(f"{name} già presente")
+            print(f"{name} già presente!")
             continue
-
+        
         X, y = load_process_dataset(dataset_path)
         if len(X) == 0:
-            raise RuntimeError(f"{name} set vuoto")
+            raise RuntimeError(f"\n{name} set vuoto")
 
         np.savez_compressed(file_path, X=X, y=y)
         print(f"{name} salvato: {X.shape}")
@@ -147,5 +143,3 @@ def save_features():
         print("Estrazione completata!")
     else:
         print("Features già salvate!")
-
-save_features()
