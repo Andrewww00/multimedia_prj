@@ -2,6 +2,9 @@
 data/fruits-360-original-size
 data/extracted_features
 
+# model
+trained_models
+
 # vscode venv
 .multimedia/
 

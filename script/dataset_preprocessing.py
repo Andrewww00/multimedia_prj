@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 from tqdm import tqdm
 from pathlib import Path
+from skimage.feature import hog
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 TRAIN_PATH = BASE_DIR / "data" /  "fruits-360-original-size" / "Training"
@@ -57,13 +58,26 @@ def extract_features_ML(img_path, new_shape=(100,100), color=255, bins=[32, 32, 
     # Canale V (Luminosità): i valori vanno da 0 a 256
     hist_v = cv2.calcHist([hsv_img], [2], None, [bins[2]], [0, 256])
 
-    feature_vector = np.concatenate([hist_h, hist_s, hist_v]).flatten()
+    """--- 4. HOG FEATURES ---"""
+    gray = cv2.cvtColor(canvas, cv2.COLOR_BGR2GRAY)
 
-    """--- 4. NORMALIZZAZIONE ---"""
-    # Dividiamo ogni valore per la somma totale dei pixel 
-    total_pixels = feature_vector.sum()
-    if total_pixels > 0:
-        feature_vector = feature_vector / total_pixels
+    hog_features = hog(
+        gray,
+        orientations=9,
+        pixels_per_cell=(8, 8),
+        cells_per_block=(2, 2),
+        block_norm='L2-Hys',
+        visualize=False,
+        feature_vector=True
+    )
+
+    feature_vector = np.concatenate([hist_h.flatten(), hist_s.flatten(), hist_v.flatten(), hog_features]).astype(np.float32)
+
+    # """--- 5. NORMALIZZAZIONE ---"""
+    # # Dividiamo ogni valore per la somma totale dei pixel 
+    # total_pixels = feature_vector.sum()
+    # if total_pixels > 0:
+    #     feature_vector = feature_vector / total_pixels
 
     return feature_vector
 
