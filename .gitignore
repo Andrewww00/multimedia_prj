@@ -1,6 +1,7 @@
 #Dataset
-data/fruits-360-original-size
-data/extracted_features
+data/processed
+data/seg_train
+data/seg_test
 
 # model
 trained_models
