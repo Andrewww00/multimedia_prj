@@ -1,7 +1,7 @@
-import numpy as np
-import json
-import joblib
-from sklearn.preprocessing import LabelEncoder
+# import numpy as np
+# import json
+# import joblib
+# from sklearn.preprocessing import LabelEncoder
 from script.preprocessing import prepare_dataset
 from script.ml_models import cross_validate_model, train_model, evaluate_model
 from script.config import DATA_DIR, ML_TRAIN_FILE, ML_VAL_FILE, ML_TEST_FILE, MODELS_DIR, LABEL_ENCODER_PATH
@@ -9,9 +9,15 @@ from script.load_datasets import compose_dataset
 from script.deep_models import cnn_model
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+import tensorflow as tf
 
 CROSS_VALIDATION = False
 CNN = True
+
+# print(tf.config.list_physical_devices('GPU'))
+# print(tf.__version__)
+# print(tf.config.list_physical_devices())
+# print(tf.config.list_physical_devices('GPU'))
 
 if __name__ == "__main__":
     prepare_dataset()
@@ -76,7 +82,7 @@ if __name__ == "__main__":
         history = model.fit(
             data_gen.flow(X_train, y_train, batch_size=64),
             validation_data=(X_val, y_val),
-            epochs=100,  #early stopping e reduce learning rate si occupano dell'overfitting
+            epochs=50,  #early stopping e reduce learning rate si occupano dell'overfitting
             callbacks=[early_stopping, reduce_lr],
             verbose=1
         )
