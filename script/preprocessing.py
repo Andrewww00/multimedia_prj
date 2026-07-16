@@ -1,18 +1,12 @@
 import cv2
 import pickle
-import kagglehub
 import numpy as np
 from tqdm import tqdm
 from pathlib import Path
 from skimage.feature import hog
 from sklearn.model_selection import train_test_split
 
-dataset_path = kagglehub.dataset_download("fedesoriano/cifar100")
-DATASET_DIR = Path(dataset_path)
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-ML_DIR = BASE_DIR / "data" / "processed" / "ml"
-CNN_DIR = BASE_DIR / "data" / "processed" / "cnn"
+from script.config import DATASET_DIR, ML_DIR, CNN_DIR
 
 def unpickle(file_path):
     """ Legge i file binari pickle e restituisce un dizionario """
@@ -171,7 +165,6 @@ def prepare_dataset():
             continue
 
         print(f"\nProcessing {split_name.upper()}...")
-        # Passiamo i flag inversi alla validità: se NON è valido, estrailo.
         X_ml, X_cnn, y = process_dataset(
             images, 
             labels, 
@@ -179,7 +172,7 @@ def prepare_dataset():
             extract_cnn=not cnn_valid
         )
 
-        # Salviamo in modo indipendente solo ciò che abbiamo ricalcolato
+        # Salvo solo quello che e' stato ricalcolato
         if not ml_valid:
             if X_ml is None or len(X_ml) == 0:
                 raise RuntimeError(f"Errore: estrazione ML fallita per {split_name}.")
