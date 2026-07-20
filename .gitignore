@@ -1,10 +1,14 @@
 #Dataset
+data
 data/processed
 data/seg_train
 data/seg_test
 
-# model
+# modelli allenati
 trained_models
+
+# plot
+plots
 
 # vscode venv
 .multimedia/

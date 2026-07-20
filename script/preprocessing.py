@@ -2,7 +2,6 @@ import cv2
 import pickle
 import numpy as np
 from tqdm import tqdm
-from pathlib import Path
 from skimage.feature import hog
 from sklearn.model_selection import train_test_split
 

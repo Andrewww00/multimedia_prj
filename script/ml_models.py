@@ -1,17 +1,21 @@
-import numpy as np
-from pathlib import Path
+from tqdm import tqdm
 import joblib
-
+from pathlib import Path
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
-from sklearn.decomposition import PCA
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, classification_report
 
-from script.preprocessing import prepare_dataset
-from script.config import ML_TRAIN_FILE, ML_VAL_FILE, ML_TEST_FILE, MODELS_DIR, LABEL_ENCODER_PATH
+def save_ml_model(model, path):
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(model, path)
+    
+def load_ml_model(path):
+    if Path(path).exists():
+        return joblib.load(path)
+    return None
 
 def get_model(model_type):
     if model_type == "logistic_reg":
@@ -42,15 +46,11 @@ def evaluate_model(model, X_test, y_test):
 
     metrics = {
         "accuracy": accuracy_score(y_test, predictions),
-        "precision": precision_score(y_test, predictions, average="weighted"),
-        "recall": recall_score(y_test, predictions, average="weighted"),
-        "f1": f1_score(y_test, predictions, average="weighted"),
-        "confusion_matrix": confusion_matrix(y_test, predictions),
-        "classification_report": classification_report(
-            y_test,
-            predictions,
-            output_dict=True
-        )
+        "precision": precision_score(y_test, predictions, average="weighted", zero_division=0),
+        "recall": recall_score(y_test, predictions, average="weighted", zero_division=0),
+        "f1": f1_score(y_test, predictions, average="weighted", zero_division=0),
+        "y_true": y_test,
+        "y_pred": predictions
     }
     return metrics
 
@@ -63,7 +63,13 @@ def cross_validate_model(model_type, X, y, n_splits=5):
 
     scores = []
     
-    for fold, (train_idx, val_idx) in enumerate(skf.split(X, y), start=1):
+    for fold, (train_idx, val_idx) in enumerate(tqdm(
+                                                    skf.split(X, y),
+                                                    total=n_splits,
+                                                    desc=f"Cross Validation {model_type}"
+                                                    ),
+                                                    start=1
+    ):
         model = train_model(
             model_type,
             X[train_idx],
@@ -76,10 +82,8 @@ def cross_validate_model(model_type, X, y, n_splits=5):
             y[val_idx]
         )
         scores.append(metrics["f1"])
-        print(f"Fold {fold}: F1={metrics['f1']:.4f}")
 
-    print(
-        f"\nMean F1: {np.mean(scores):.4f} ± {np.std(scores):.4f}"
-    )
+        final_model = get_model(model_type)
+        final_model.fit(X, y)
 
-    return scores
+    return scores, final_model
