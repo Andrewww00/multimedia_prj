@@ -18,6 +18,9 @@ LOGISTIC_CV_MODEL_PATH = MODELS_DIR / "logistic_reg_cv.pkl"
 RANDOM_FOREST_MODEL_PATH = MODELS_DIR / "random_forest.pkl"
 RANDOM_FOREST_CV_MODEL_PATH = MODELS_DIR / "random_forest_cv.pkl"
 CNN_MODEL_PATH = MODELS_DIR / "cnn_cifar100.keras"
+CNN_HISTORY_PATH = MODELS_DIR / "cnn_history.json"
+TL_MODEL_PATH = MODELS_DIR / "tl_cifar100.keras"
+TL_HISTORY_PATH = MODELS_DIR / "tl_history.json"
 
 # ML datasets
 ML_TRAIN_FILE = ML_DIR / "train.npz"
@@ -31,6 +34,3 @@ CNN_TEST_FILE = CNN_DIR / "test.npz"
 
 # Path per i plot
 PLOTS_DIR = BASE_DIR / "plots"
-
-MODELS_DIR.mkdir(exist_ok=True)
-PLOTS_DIR.mkdir(exist_ok=True)

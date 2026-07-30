@@ -7,11 +7,13 @@ from sklearn.model_selection import train_test_split
 
 from script.config import DATASET_DIR, ML_DIR, CNN_DIR
 
+
 def unpickle(file_path):
     """ Legge i file binari pickle e restituisce un dizionario """
     with open(file_path, 'rb') as fo:
         dict_data = pickle.load(fo, encoding='bytes')
     return dict_data
+
 
 def validate_dataset(file_path):
     """ Controlla che il file npz esista, sia leggibile e contenga X e y """
@@ -35,11 +37,13 @@ def validate_dataset(file_path):
         file_path.unlink(missing_ok=True)
         return False
 
+
 def reconstruct_image(flat_array):
     """ Funzione di ricostruzione delle immagini per la CNN """
     img_reshaped = flat_array.reshape(3, 32, 32)
     img = img_reshaped.transpose(1, 2, 0)
     return img
+
 
 def normalize_hist(hist):
     """ Funzione di normalizzazione degli istogrammi """
@@ -48,10 +52,11 @@ def normalize_hist(hist):
         hist /= hist.sum()
     return hist.flatten()
 
+
 def extract_features_ML(img, bins=[32, 32, 32]):
     """ Estrazione features per gli algoritmi di ML """
     hsv_img = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
-    
+
     # Canale H (Tonalità): i valori in OpenCV vanno da 0 a 180
     hist_h = cv2.calcHist([hsv_img], [0], None, [bins[0]], [0, 180])
     # Canale S (Saturazione): i valori vanno da 0 a 256
@@ -65,7 +70,7 @@ def extract_features_ML(img, bins=[32, 32, 32]):
 
     """ HOG FEATURES """
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    
+
     hog_features = hog(
         gray,
         orientations=9,
@@ -75,15 +80,16 @@ def extract_features_ML(img, bins=[32, 32, 32]):
         visualize=False,
         feature_vector=True
     )
-    
+
     feature_vector = np.concatenate([
-        hist_h.flatten(), 
-        hist_s.flatten(), 
-        hist_v.flatten(), 
+        hist_h.flatten(),
+        hist_s.flatten(),
+        hist_v.flatten(),
         hog_features
     ]).astype(np.float32)
-    
+
     return feature_vector
+
 
 def process_dataset(raw_images, labels, extract_ml=True, extract_cnn=True):
     """ Crazione dataset ML e CNN """
@@ -112,9 +118,11 @@ def process_dataset(raw_images, labels, extract_ml=True, extract_cnn=True):
 
     return out_ml, out_cnn, np.array(labels)
 
+
 def save_dataset(path, X, y):
     path.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(path, X=X, y=y)
+
 
 def prepare_dataset():
     """ Orchestratore che richiama le funzioni per l'estrazione, creazione e salvataggio dei dataset"""
@@ -143,7 +151,6 @@ def prepare_dataset():
         stratify=raw_train_labels
     )
 
-    
     datasets_to_process = {
         "train": (train_images, train_labels),
         "val": (val_images, val_labels),
@@ -160,24 +167,27 @@ def prepare_dataset():
 
         # Se entrambi sono pronti, passiamo al prossimo split
         if ml_valid and cnn_valid:
-            print(f"Split '{split_name.upper()}' (ML e CNN) già presenti e validi")
+            print(
+                f"Split '{split_name.upper()}' (ML e CNN) già presenti e validi")
             continue
 
         print(f"\nProcessing {split_name.upper()}...")
         X_ml, X_cnn, y = process_dataset(
-            images, 
-            labels, 
-            extract_ml=not ml_valid, 
+            images,
+            labels,
+            extract_ml=not ml_valid,
             extract_cnn=not cnn_valid
         )
 
         # Salvo solo quello che e' stato ricalcolato
         if not ml_valid:
             if X_ml is None or len(X_ml) == 0:
-                raise RuntimeError(f"Errore: estrazione ML fallita per {split_name}.")
+                raise RuntimeError(
+                    f"Errore: estrazione ML fallita per {split_name}.")
             save_dataset(ml_file, X_ml, y)
-            
+
         if not cnn_valid:
             if X_cnn is None or len(X_cnn) == 0:
-                raise RuntimeError(f"Errore: estrazione CNN fallita per {split_name}.")
+                raise RuntimeError(
+                    f"Errore: estrazione CNN fallita per {split_name}.")
             save_dataset(cnn_file, X_cnn, y)

@@ -6,16 +6,19 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import StratifiedKFold
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, classification_report
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+
 
 def save_ml_model(model, path):
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(model, path)
-    
+
+
 def load_ml_model(path):
     if Path(path).exists():
         return joblib.load(path)
     return None
+
 
 def get_model(model_type):
     if model_type == "logistic_reg":
@@ -35,11 +38,13 @@ def get_model(model_type):
     else:
         raise ValueError("Modello non riconosciuto")
 
+
 def train_model(model_type, X, y):
     model = get_model(model_type)
     model.fit(X, y)
 
     return model
+
 
 def evaluate_model(model, X_test, y_test):
     predictions = model.predict(X_test)
@@ -54,6 +59,7 @@ def evaluate_model(model, X_test, y_test):
     }
     return metrics
 
+
 def cross_validate_model(model_type, X, y, n_splits=5):
     skf = StratifiedKFold(
         n_splits=n_splits,
@@ -62,13 +68,13 @@ def cross_validate_model(model_type, X, y, n_splits=5):
     )
 
     scores = []
-    
+
     for fold, (train_idx, val_idx) in enumerate(tqdm(
-                                                    skf.split(X, y),
-                                                    total=n_splits,
-                                                    desc=f"Cross Validation {model_type}"
-                                                    ),
-                                                    start=1
+        skf.split(X, y),
+        total=n_splits,
+        desc=f"Cross Validation {model_type}"
+    ),
+        start=1
     ):
         model = train_model(
             model_type,

@@ -4,11 +4,14 @@ data/processed
 data/seg_train
 data/seg_test
 
-# modelli allenati
+# Cartella dei modelli allenati
 trained_models
 
-# plot
+# Cartella dei plot
 plots
+
+# Cartella dei parametri ottenuti tramite grid search
+tuner_results
 
 # vscode venv
 .multimedia/

@@ -1,8 +1,23 @@
-from script.config import *
+from config import *
 import numpy as np
 import joblib
+import pickle
 from sklearn.preprocessing import LabelEncoder
 from keras.utils import to_categorical
+
+
+def load_class_names():
+    meta_file = Path(DATASET_DIR) / "meta"
+    with open(meta_file, "rb") as f:
+        meta = pickle.load(f, encoding="bytes")
+
+    class_names = meta[b"fine_label_names"]
+    class_names = [
+        name.decode("utf-8")
+        for name in class_names
+    ]
+    return class_names
+
 
 def load(files):
     datasets = []
@@ -18,8 +33,7 @@ def load(files):
     return X_train, y_train, X_val, y_val, X_test, y_test
 
 
-
-def compose_dataset(CNN = False):
+def compose_dataset(CNN=False):
     if CNN:
         files = [CNN_TRAIN_FILE, CNN_VAL_FILE, CNN_TEST_FILE]
         X_train, y_train, X_val, y_val, X_test, y_test = load(files)
@@ -32,7 +46,7 @@ def compose_dataset(CNN = False):
         y_train = to_categorical(y_train, num_classes=100)
         y_val = to_categorical(y_val, num_classes=100)
         y_test = to_categorical(y_test, num_classes=100)
-    
+
     else:
         files = [ML_TRAIN_FILE, ML_VAL_FILE, ML_TEST_FILE]
         X_train, y_train, X_val, y_val, X_test, y_test = load(files)
@@ -44,6 +58,5 @@ def compose_dataset(CNN = False):
         y_test = le.transform(y_test)
 
         joblib.dump(le, LABEL_ENCODER_PATH)
-        
+
     return X_train, y_train, X_val, y_val, X_test, y_test
-    

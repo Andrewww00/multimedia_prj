@@ -5,10 +5,11 @@ from pathlib import Path
 from skimage.feature import hog
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-TRAIN_PATH = BASE_DIR / "data" /  "fruits-360-original-size" / "Training"
+TRAIN_PATH = BASE_DIR / "data" / "fruits-360-original-size" / "Training"
 TEST_PATH = BASE_DIR / "data" / "fruits-360-original-size" / "Test"
-VAL_PATH = BASE_DIR / "data" /  "fruits-360-original-size" / "Validation"
+VAL_PATH = BASE_DIR / "data" / "fruits-360-original-size" / "Validation"
 FEATURES_DIR = BASE_DIR / "data" / "extracted_features"
+
 
 def resize(img_path, new_shape=(100, 100), color=255):
     """--- 0. LETTURA DELLE IMMAGINI ---"""
@@ -30,18 +31,19 @@ def resize(img_path, new_shape=(100, 100), color=255):
 
     """--- 2. PADDING ---"""
     # Padding per ottenere le dimensioni desiderate
-    canvas = np.full((h_new, w_new, 3), color, dtype=np.uint8) 
+    canvas = np.full((h_new, w_new, 3), color, dtype=np.uint8)
     # Centro l'immagine calcolando l'offset
     top = (h_new - h_scaled) // 2
-    left = (w_new - w_scaled) //2
+    left = (w_new - w_scaled) // 2
     # Metto l'immagine al centro
     # Dopo questa operazione la shape risulta (100, 100, 3)
     canvas[
-            top:top + h_scaled,
-            left:left + w_scaled
-        ] = img_resized
+        top:top + h_scaled,
+        left:left + w_scaled
+    ] = img_resized
 
     return canvas
+
 
 def extract_features_ML(canvas, bins=[32, 32, 32]):
     """--- 3. CONVERSIONE DA BGR A HSV ---"""
@@ -65,16 +67,18 @@ def extract_features_ML(canvas, bins=[32, 32, 32]):
         visualize=False,
         feature_vector=True
     )
-    feature_vector = np.concatenate([hist_h.flatten(), hist_s.flatten(), hist_v.flatten(), hog_features]).astype(np.float32)
-    
+    feature_vector = np.concatenate([hist_h.flatten(), hist_s.flatten(
+    ), hist_v.flatten(), hog_features]).astype(np.float32)
+
     """Faccio la normalizzazione con lo standarscaler nei modelli"""
     # """--- 5. NORMALIZZAZIONE ---"""
-    # # Dividiamo ogni valore per la somma totale dei pixel 
+    # # Dividiamo ogni valore per la somma totale dei pixel
     # total_pixels = feature_vector.sum()
     # if total_pixels > 0:
     #     feature_vector = feature_vector / total_pixels
 
     return feature_vector
+
 
 def load_process_dataset(dataset_path):
     X, y = [], []
@@ -91,11 +95,12 @@ def load_process_dataset(dataset_path):
                 continue
             canvas = resize(str(img_path))
             features = extract_features_ML(canvas)
-            
+
             X.append(features)
             y.append(label)
-            
+
     return np.array(X), np.array(y)
+
 
 def validate(file_path):
     """
@@ -114,17 +119,18 @@ def validate(file_path):
         file_path.unlink(missing_ok=True)
         return False
 
+
 def save_features():
     FEATURES_DIR.mkdir(parents=True, exist_ok=True)
     dataset_paths = [TRAIN_PATH, TEST_PATH, VAL_PATH]
     names = ["Train", "Test", "Validation"]
-    
+
     for dataset_path, name in zip(dataset_paths, names):
         file = FEATURES_DIR / f"{name.lower()}.npz"
         if file.exists() and validate(file):
             print(f"{name} già presente e valido.")
             continue
-        
+
         print(f"Rigenerazione {name} in corso...")
         X, y = load_process_dataset(dataset_path)
         np.savez_compressed(file, X=X, y=y)
