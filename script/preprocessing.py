@@ -4,7 +4,6 @@ import numpy as np
 from tqdm import tqdm
 from skimage.feature import hog
 from sklearn.model_selection import train_test_split
-
 from script.config import DATASET_DIR, ML_DIR, CNN_DIR
 
 

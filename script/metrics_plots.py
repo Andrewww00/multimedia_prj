@@ -3,8 +3,8 @@ import scipy.stats as stats
 import matplotlib.pyplot as plt  # pyright: ignore[reportMissingModuleSource]
 from sklearn import metrics
 import seaborn as sns
-from config import PLOTS_DIR
-from ml_models import evaluate_model
+from script.config import PLOTS_DIR
+from script.ml_models import evaluate_model
 
 DISTANCE = 0.5
 

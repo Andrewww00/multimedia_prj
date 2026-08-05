@@ -1,5 +1,5 @@
 from keras.models import Sequential
-from keras.layers import Dense, Conv2D, GlobalAveragePooling2D, Dropout, BatchNormalization, UpSampling2D
+from keras.layers import Lambda, Dense, Conv2D, GlobalAveragePooling2D, Dropout, BatchNormalization, UpSampling2D
 from keras.regularizers import l2
 from keras.applications.densenet import DenseNet121, preprocess_input
 from keras.optimizers import Adam, AdamW, Nadam
@@ -8,6 +8,7 @@ import tensorflow as tf
 from keras.models import Model
 
 MODEL_TYPE = "cnn"
+
 
 def cnn_model(params=None):
     if params is None:
@@ -106,16 +107,17 @@ def cnn_model(params=None):
 def transfer_learning_model(params=None, input_shape=(32, 32, 3), num_classes=100):
     if params is None:
         params = {}
-        
+
     lr = params.get("learning_rate", 1e-3)
     dense_units = params.get("dense_units", 256)
     dropout_rate = params.get("dropout_rate", 0.3)
 
-    inputs = tf.keras.Input(shape=input_shape)
     scale = 7
 
-    x = UpSampling2D(size=(scale, scale), interpolation='bilinear')(inputs)
-    x = preprocess_input(x)
+    inputs = tf.keras.Input(shape=input_shape)
+    x = inputs * 255.0
+    x = UpSampling2D(size=(scale, scale), interpolation='bilinear')(x)
+    x = Lambda(preprocess_input)(x)
     base_model = DenseNet121(
         input_shape=(32*scale, 32*scale, 3),
         include_top=False,
@@ -140,21 +142,21 @@ def transfer_learning_model(params=None, input_shape=(32, 32, 3), num_classes=10
     return model, base_model
 
 
-def parameter_search(hp):
-    if MODEL_TYPE == "cnn":
+def dl_parameter_search(hp, model_type):
+    if model_type == "cnn":
         params = {
             "learning_rate": hp.Choice("learning_rate", values=[0.001, 0.0005, 0.0001]),
-            "dropout_base": hp.Choice("dropout", values=[0.2, 0.3, 0.4]),
+            "dropout_base": hp.Choice("dropout_base", values=[0.2, 0.3, 0.4]),
             "optimizer": hp.Choice("optimizer", values=["adam", "adamw", "nadam"])
         }
 
         return cnn_model(params)
 
-    else:
+    elif model_type == "transfer_learning":
         params = {
-            "learning_rate": hp.Choice("lr_tl", [1e-3, 1e-4, 1e-5]),
-            "dense_units": hp.Choice("dense_units_tl", [128, 256, 512]),
-            "dropout_rate": hp.Choice("dropout_tl", [0.2, 0.3, 0.4])
+            "learning_rate": hp.Choice("learning_rate", [1e-3, 1e-4, 1e-5]),
+            "dense_units": hp.Choice("dense_units", [128, 256, 512]),
+            "dropout_rate": hp.Choice("dropout_rate", [0.2, 0.3, 0.4])
         }
         model, _ = transfer_learning_model(params)
         return model

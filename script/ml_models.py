@@ -20,29 +20,25 @@ def load_ml_model(path):
     return None
 
 
-def get_model(model_type):
+def train_model(model_type, X, y, params=None):
+    if params is None:
+        params = {}
+
     if model_type == "logistic_reg":
-        return Pipeline([
+        clf = LogisticRegression(
+            solver='saga', max_iter=1000, random_state=42, **params)
+        model = Pipeline([
             ("scaler", StandardScaler()),
-            ("clf", LogisticRegression(max_iter=500))
+            ("clf", clf)
         ])
 
     elif model_type == "random_forest":
-        return RandomForestClassifier(
-            n_estimators=100,
-            max_depth=20,
-            random_state=42,
-            n_jobs=-1
-        )
+        model = RandomForestClassifier(random_state=42, n_jobs=-1, **params)
 
     else:
-        raise ValueError("Modello non riconosciuto")
+        raise ValueError(f"Modello '{model_type}' non riconosciuto")
 
-
-def train_model(model_type, X, y):
-    model = get_model(model_type)
     model.fit(X, y)
-
     return model
 
 
@@ -60,7 +56,7 @@ def evaluate_model(model, X_test, y_test):
     return metrics
 
 
-def cross_validate_model(model_type, X, y, n_splits=5):
+def cross_validate_model(model_type, X, y, n_splits=5, params=None):
     skf = StratifiedKFold(
         n_splits=n_splits,
         shuffle=True,
@@ -79,7 +75,8 @@ def cross_validate_model(model_type, X, y, n_splits=5):
         model = train_model(
             model_type,
             X[train_idx],
-            y[train_idx]
+            y[train_idx],
+            params=params
         )
 
         metrics = evaluate_model(
@@ -89,7 +86,6 @@ def cross_validate_model(model_type, X, y, n_splits=5):
         )
         scores.append(metrics["f1"])
 
-        final_model = get_model(model_type)
-        final_model.fit(X, y)
+    final_model = train_model(model_type, X, y, params=params)
 
     return scores, final_model

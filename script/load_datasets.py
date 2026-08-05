@@ -1,4 +1,4 @@
-from config import *
+from script.config import *
 import numpy as np
 import joblib
 import pickle

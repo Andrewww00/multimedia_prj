@@ -1,7 +1,6 @@
-
 import json
 from script.preprocessing import prepare_dataset
-from script.ml_models import cross_validate_model, train_model, evaluate_model, save_ml_model, load_ml_model
+from script.ml_models import cross_validate_model, train_model, save_ml_model, load_ml_model
 from script.config import *
 from script.load_datasets import compose_dataset, load_class_names
 from script.deep_models import cnn_model, transfer_learning_model
@@ -40,8 +39,20 @@ if __name__ == "__main__":
         models = ["logistic_reg", "random_forest"]
         score = []
         results = {}
-        if CROSS_VALIDATION:
-            for model in models:
+
+        for model in models:
+            # 1. CARICAMENTO DEI MIGLIORI PARAMETRI
+            json_path = Path("tuner_results") / f"{model}_best_params.json"
+            if json_path.exists():
+                with open(json_path, "r") as f:
+                    best_params = json.load(f)
+                print(
+                    f"Parametri ottimali caricati per {model}: {best_params}")
+            else:
+                print(f"Parametri per {model} non trovati. Uso i default.")
+                best_params = {}
+
+            if CROSS_VALIDATION:
                 model_path = cv_model_paths[model]
                 trained_model = load_ml_model(model_path)
                 if trained_model is None:
@@ -50,29 +61,29 @@ if __name__ == "__main__":
                         model_type=model,
                         X=X_train,
                         y=y_train,
-                        n_splits=5
+                        n_splits=5,
+                        params=best_params
                     )
                     save_ml_model(trained_model, model_path)
                     print(f"{model} salvato.")
                 else:
                     print(f"{model} già allenato. Caricamento completato.")
+
                 mt.evaluate_and_plot_model(
-                    model,
-                    trained_model,
-                    X_test,
-                    y_test,
-                    results
+                    model, trained_model, X_test, y_test, results
                 )
 
-        elif CROSS_VALIDATION == False:
-            for model in models:
+            # No cross validation
+            else:
                 model_path = model_paths[model]
                 trained_model = load_ml_model(model_path)
                 if trained_model is None:
+                    print(f"Alleno {model} senza cross validation")
                     trained_model = train_model(
                         model_type=model,
                         X=X_train,
                         y=y_train,
+                        params=best_params
                     )
                     save_ml_model(trained_model, model_path)
                     print(f"{model} salvato.")
@@ -80,12 +91,9 @@ if __name__ == "__main__":
                     print(f"{model} già allenato. Caricamento completato.")
 
                 mt.evaluate_and_plot_model(
-                    model,
-                    trained_model,
-                    X_test,
-                    y_test,
-                    results
+                    model, trained_model, X_test, y_test, results
                 )
+
         mt.plot_models_comparison(results)
 
     elif CNN:
@@ -94,7 +102,6 @@ if __name__ == "__main__":
             CNN=True)
 
         if CNN_MODEL_PATH.exists():
-
             print("CNN già allenata. Caricamento modello...")
             model = load_model(CNN_MODEL_PATH)
             history_path = MODELS_DIR / "cnn_history.json"
@@ -108,7 +115,20 @@ if __name__ == "__main__":
         else:
             print("CNN non trovata. Avvio training...")
 
-            model = cnn_model()
+            # Carico i best params che ho salvato in .json
+            json_path = Path("tuner_results") / "cnn_best_params.json"
+            if json_path.exists():
+                with open(json_path, "r") as f:
+                    best_params = json.load(f)
+                print(
+                    f"Iperparametri ottimali caricati da {json_path}: {best_params}")
+            else:
+                print(
+                    f"Attenzione: {json_path} non trovato. Utilizzo i parametri di default.")
+                best_params = {}
+
+            # Uso i best params trovati con grid search
+            model = cnn_model(best_params)
 
             # 1. DATA AUGMENTATION
             data_gen = ImageDataGenerator(
@@ -130,7 +150,7 @@ if __name__ == "__main__":
 
             reduce_lr = ReduceLROnPlateau(
                 monitor='val_loss',
-                factor=0.5,      # Dimezzo il learning rate se per 5 epoche non ho miglioramenti
+                factor=0.5,      # diminuisco il learning rate se per 8 epoche non ho miglioramenti
                 patience=5,
                 min_lr=1e-5
             )
@@ -146,15 +166,15 @@ if __name__ == "__main__":
             # 3. TRAINING
             print("Inizio training")
             history = model.fit(
-                data_gen.flow(X_train, y_train, batch_size=64),
+                data_gen.flow(X_train, y_train, batch_size=32),
                 validation_data=(X_val, y_val),
-                epochs=50,  # early stopping e reduce learning rate si occupano dell'overfitting
+                epochs=100,  # early stopping e reduce learning rate si occupano dell'overfitting
                 callbacks=[early_stopping, reduce_lr, checkpoint],
                 verbose=1
             )
 
-            # 4. Salvataggio modello
-            model.save(CNN_MODEL_PATH)
+            # 4. Caricamento modello
+            model = load_model(CNN_MODEL_PATH)
 
             history_dict = {
                 key: [float(value) for value in values]
@@ -188,9 +208,24 @@ if __name__ == "__main__":
         X_train, y_train, X_val, y_val, X_test, y_test = compose_dataset(
             CNN=True)
 
-        X_train = X_train * 255.0
-        X_val = X_val * 255.0
-        X_test = X_test * 255.0
+        json_path = Path("tuner_results") / \
+            "transfer_learning_best_params.json"
+        if json_path.exists():
+            with open(json_path, "r") as f:
+                best_params = json.load(f)
+            print(
+                f"Iperparametri ottimali caricati da {json_path}: {best_params}")
+        else:
+            print(
+                f"Attenzione: {json_path} non trovato. Utilizzo i parametri di default.")
+            best_params = {}
+
+        # Creo un dizionario che contiene i parametri trovati con grid search
+        tl_params = {
+            "learning_rate": best_params.get("learning_rate", 1e-3),
+            "dense_units": best_params.get("dense_units", 256),
+            "dropout_rate": best_params.get("dropout_rate", 0.3)
+        }
 
         if TL_MODEL_PATH.exists():
             print("CNN con transfer learning già allenata. Caricamento modello...")
@@ -210,8 +245,10 @@ if __name__ == "__main__":
                     print("History corrotta. Verrà ignorata.")
         else:
             print("CNN non trovata. Avvio Transfer Learning...")
-            # Creazione modello DenseNet121
+
+            # Passo i parametri trovati tramite grid search
             model, base_model = transfer_learning_model(
+                params=tl_params,
                 input_shape=(32, 32, 3),
                 num_classes=100
             )
@@ -229,65 +266,35 @@ if __name__ == "__main__":
                 fill_mode="reflect"
             )
 
-            # Controlli learning rate e epoche
             early_stopping_1 = EarlyStopping(
-                monitor="val_loss",
-                patience=5,
-                restore_best_weights=True
-            )
-
+                monitor="val_loss", patience=5, restore_best_weights=True)
             early_stopping_2 = EarlyStopping(
-                monitor="val_loss",
-                patience=5,
-                restore_best_weights=True
-            )
-
-            checkpoint_1 = ModelCheckpoint(
-                filepath=str(TL_MODEL_PATH),
-                monitor="val_accuracy",
-                save_best_only=True,
-                mode="max",
-                verbose=1
-            )
-
-            checkpoint_2 = ModelCheckpoint(
-                filepath=str(TL_MODEL_PATH),
-                monitor="val_accuracy",
-                save_best_only=True,
-                mode="max",
-                verbose=1
-            )
-
-            reduce_lr = ReduceLROnPlateau(
-                monitor="val_loss",
-                factor=0.5,
-                patience=4,
-                min_lr=1e-6
-            )
+                monitor="val_loss", patience=5, restore_best_weights=True)
+            checkpoint_1 = ModelCheckpoint(filepath=str(
+                TL_MODEL_PATH), monitor="val_accuracy", save_best_only=True, mode="max", verbose=1)
+            checkpoint_2 = ModelCheckpoint(filepath=str(
+                TL_MODEL_PATH), monitor="val_accuracy", save_best_only=True, mode="max", verbose=1)
+            reduce_lr_1 = ReduceLROnPlateau(
+                monitor="val_loss", factor=0.5, patience=4, min_lr=1e-6)
+            reduce_lr_2 = ReduceLROnPlateau(
+                monitor="val_loss", factor=0.5, patience=4, min_lr=1e-6)
 
             # FASE 1: FEATURE EXTRACTION
             print("\nFASE 1 - Backbone congelato")
+
             model.compile(
                 optimizer=Adam(
-                    learning_rate=1e-3
+                    learning_rate=tl_params["learning_rate"]
                 ),
                 loss="categorical_crossentropy",
                 metrics=["accuracy"]
             )
 
             history_1 = model.fit(
-                data_gen.flow(
-                    X_train,
-                    y_train,
-                    batch_size=64
-                ),
+                data_gen.flow(X_train, y_train, batch_size=32),
                 validation_data=(X_val, y_val),
-                epochs=30,
-                callbacks=[
-                    early_stopping_1,
-                    reduce_lr,
-                    checkpoint_1
-                ],
+                epochs=50,
+                callbacks=[early_stopping_1, reduce_lr_1, checkpoint_1],
                 verbose=1
             )
 
@@ -303,27 +310,21 @@ if __name__ == "__main__":
                 if isinstance(layer, BatchNormalization):
                     layer.trainable = False
 
+            fine_tuning_lr = tl_params["learning_rate"] / 100
+
             model.compile(
                 optimizer=Adam(
-                    learning_rate=1e-5
+                    learning_rate=fine_tuning_lr
                 ),
                 loss="categorical_crossentropy",
                 metrics=["accuracy"]
             )
 
             history_2 = model.fit(
-                data_gen.flow(
-                    X_train,
-                    y_train,
-                    batch_size=64
-                ),
+                data_gen.flow(X_train, y_train, batch_size=32),
                 validation_data=(X_val, y_val),
                 epochs=50,
-                callbacks=[
-                    early_stopping_2,
-                    reduce_lr,
-                    checkpoint_2
-                ],
+                callbacks=[early_stopping_2, reduce_lr_2, checkpoint_2],
                 verbose=1
             )
 
