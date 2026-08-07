@@ -3,6 +3,7 @@ import joblib
 from pathlib import Path
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import StratifiedKFold
@@ -20,27 +21,74 @@ def load_ml_model(path):
     return None
 
 
-def train_model(model_type, X, y, params=None):
+def train_model(model_type, X, y, params=None):    
     if params is None:
         params = {}
 
     if model_type == "logistic_reg":
+        # Estrazione parametri PCA
+        pca_params = {
+            k.replace("pca__", ""): v
+            for k, v in params.items()
+            if k.startswith("pca__")
+        }
+        # Estrazione parametri Logistic Regression
+        lr_params = {
+            k: v
+            for k, v in params.items()
+            if not k.startswith("pca__")
+        }
+
+        # Inizializzazione Logistic Regression
         clf = LogisticRegression(
-            solver='saga', max_iter=1000, random_state=42, **params)
-        model = Pipeline([
+            max_iter=1000,
+            random_state=42,
+            **lr_params
+        )
+
+        pipeline = Pipeline([
             ("scaler", StandardScaler()),
+            ("pca", PCA(**pca_params)),
             ("clf", clf)
         ])
 
+        # Addestramento
+        pipeline.fit(X, y)
+        return pipeline
+    
     elif model_type == "random_forest":
-        model = RandomForestClassifier(random_state=42, n_jobs=-1, **params)
+        # Estrazione parametri PCA
+        pca_params = {
+            k.replace("pca__", ""): v
+            for k, v in params.items()
+            if k.startswith("pca__")
+        }
+
+        # Estrazione parametri Random Forest
+        rf_params = {
+            k: v
+            for k, v in params.items()
+            if not k.startswith("pca__")
+        }
+
+        # Inizializzazione della Random Forest
+        clf = RandomForestClassifier(
+            random_state=42,
+            n_jobs=-1,
+            **rf_params
+        )
+
+        pipeline = Pipeline([
+            ("pca", PCA(random_state=42, svd_solver='randomized', **pca_params)),
+            ("clf", clf)
+        ])
+
+        # Addestramento
+        pipeline.fit(X, y)
+        return pipeline
 
     else:
-        raise ValueError(f"Modello '{model_type}' non riconosciuto")
-
-    model.fit(X, y)
-    return model
-
+        raise ValueError(f"Modello non riconosciuto: {model_type}")
 
 def evaluate_model(model, X_test, y_test):
     predictions = model.predict(X_test)
@@ -63,8 +111,7 @@ def cross_validate_model(model_type, X, y, n_splits=5, params=None):
         random_state=42
     )
 
-    scores = []
-
+    cv_metrics = {"accuracy": [], "precision": [], "recall": [], "f1": []}
     for fold, (train_idx, val_idx) in enumerate(tqdm(
         skf.split(X, y),
         total=n_splits,
@@ -84,8 +131,12 @@ def cross_validate_model(model_type, X, y, n_splits=5, params=None):
             X[val_idx],
             y[val_idx]
         )
-        scores.append(metrics["f1"])
+        cv_metrics["accuracy"].append(metrics["accuracy"])
+        cv_metrics["precision"].append(metrics["precision"])
+        cv_metrics["recall"].append(metrics["recall"])
+        cv_metrics["f1"].append(metrics["f1"])
+
 
     final_model = train_model(model_type, X, y, params=params)
 
-    return scores, final_model
+    return cv_metrics, final_model

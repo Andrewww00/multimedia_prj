@@ -1,5 +1,5 @@
 from keras.models import Sequential
-from keras.layers import Lambda, Dense, Conv2D, GlobalAveragePooling2D, Dropout, BatchNormalization, UpSampling2D
+from keras.layers import Rescaling, Dense, Conv2D, GlobalAveragePooling2D, Dropout, BatchNormalization, UpSampling2D
 from keras.regularizers import l2
 from keras.applications.densenet import DenseNet121, preprocess_input
 from keras.optimizers import Adam, AdamW, Nadam
@@ -115,9 +115,9 @@ def transfer_learning_model(params=None, input_shape=(32, 32, 3), num_classes=10
     scale = 7
 
     inputs = tf.keras.Input(shape=input_shape)
-    x = inputs * 255.0
+    x = Rescaling(255.0)(inputs)
     x = UpSampling2D(size=(scale, scale), interpolation='bilinear')(x)
-    x = Lambda(preprocess_input)(x)
+    x = preprocess_input(x)
     base_model = DenseNet121(
         input_shape=(32*scale, 32*scale, 3),
         include_top=False,

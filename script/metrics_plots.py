@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.stats as stats
-import matplotlib.pyplot as plt  # pyright: ignore[reportMissingModuleSource]
+import matplotlib.pyplot as plt
+from matplotlib.container import BarContainer
 from sklearn import metrics
 import seaborn as sns
 from script.config import PLOTS_DIR
@@ -9,32 +10,31 @@ from script.ml_models import evaluate_model
 DISTANCE = 0.5
 
 
-def evaluate_and_plot_model(model_name, model, X_test, y_test, results):
+def evaluate_and_plot_model(model_name, model, X_test, y_test, cv_metrics=None):
 
-    metrics = evaluate_model(
-        model,
-        X_test,
-        y_test
-    )
+    metrics = evaluate_model(model, X_test, y_test)
+    if cv_metrics is not None:
+        ci = cv_metrics["ci"]
+    else:
+        ci = [0, 0, 0, 0]
 
-    print(f"\n--- {model_name} ---")
-    print(f"Accuracy:  {metrics['accuracy']*100:.2f}%")
-    print(f"Precision: {metrics['precision']*100:.2f}%")
-    print(f"Recall:    {metrics['recall']*100:.2f}%")
-    print(f"F1-Score:  {metrics['f1']*100:.2f}%")
+    print(f"\n--- TEST SET: {model_name} ---")
+    print(f"Accuracy:  {metrics['accuracy']*100:.2f}% ± {ci[0]:.2f}")
+    print(f"Precision: {metrics['precision']*100:.2f}% ± {ci[1]:.2f}")
+    print(f"Recall:    {metrics['recall']*100:.2f}% ± {ci[2]:.2f}")
+    print(f"F1-Score:  {metrics['f1']*100:.2f}% ± {ci[3]:.2f}")
 
-    plot_confusion_matrix(
-        metrics["y_true"],
-        metrics["y_pred"],
-        title=f"Confusion Matrix - {model_name}"
-    )
+    plot_confusion_matrix(metrics["y_true"], metrics["y_pred"], title=f"Confusion Matrix - {model_name}")
 
-    results[model_name] = [
-        metrics["accuracy"] * 100,
-        metrics["precision"] * 100,
-        metrics["recall"] * 100,
-        metrics["f1"] * 100
-    ]
+    return {
+        "means": [
+            metrics["accuracy"] * 100,
+            metrics["precision"] * 100,
+            metrics["recall"] * 100,
+            metrics["f1"] * 100
+        ],
+        "ci": [0.0, 0.0, 0.0, 0.0]
+    }
 
 
 def save_plot(filename):
@@ -132,41 +132,49 @@ def plot_training_history(history, title="Model Training History"):
 
 def plot_models_comparison(models_dict):
     """
-    Crea il grafico a barre affiancate (come nel vecchio notebook) per confrontare più modelli.
-    models_dict si aspetta la struttura: {"Nome Modello": [acc, prec, rec, f1]}
+    Confronto i modelli con bar graph con intervallo di confidenza
     """
     models = list(models_dict.keys())
 
-    accuracy = [models_dict[m][0] for m in models]
-    precision = [models_dict[m][1] for m in models]
-    recall = [models_dict[m][2] for m in models]
-    f1_score = [models_dict[m][3] for m in models]
+    # Estraggo le medie 
+    accuracy = [models_dict[m]["means"][0] for m in models]
+    precision = [models_dict[m]["means"][1] for m in models]
+    recall = [models_dict[m]["means"][2] for m in models]
+    f1_score = [models_dict[m]["means"][3] for m in models]
+    
+    # intervalli di confidenza
+    acc_err = [models_dict[m]["ci"][0] for m in models]
+    prec_err = [models_dict[m]["ci"][1] for m in models]
+    rec_err = [models_dict[m]["ci"][2] for m in models]
+    f1_err = [models_dict[m]["ci"][3] for m in models]
 
     x = np.arange(len(models)) * DISTANCE
     width = 0.1
 
-    fig, axis = plt.subplots(figsize=(7, 6))
+    fig, axis = plt.subplots(figsize=(8, 6))
 
-    axis.bar(x - 1.5 * width, accuracy, width,
-             label='Accuracy', color='#4C72B0')
-    axis.bar(x - 0.5 * width, precision, width,
-             label='Precision', color='#55A868')
-    axis.bar(x + 0.5 * width, recall, width, label='Recall', color='#C44E52')
-    axis.bar(x + 1.5 * width, f1_score, width,
-             label='F1 Score', color='#8172B3')
+    axis.bar(x - 1.5 * width, accuracy, width, yerr=acc_err, capsize=4, label='Accuracy', color='#4C72B0')
+    axis.bar(x - 0.5 * width, precision, width, yerr=prec_err, capsize=4, label='Precision', color='#55A868')
+    axis.bar(x + 0.5 * width, recall, width, yerr=rec_err, capsize=4, label='Recall', color='#C44E52')
+    axis.bar(x + 1.5 * width, f1_score, width, yerr=f1_err, capsize=4, label='F1 Score', color='#8172B3')
 
     axis.set_xlabel('Modelli')
     axis.set_ylabel('Performance (%)')
-    axis.set_title('Confronto Metriche Modelli su CIFAR-100')
+    axis.set_title('Confronto Metriche (con Intervallo di Confidenza al 95%)')
     axis.set_xticks(x)
     axis.set_xticklabels(models)
 
-    # Aggiungiamo i valori numerici sopra le barre per massima chiarezza
     for container in axis.containers:
-        axis.bar_label(container, fmt='%.1f', padding=3, fontsize=8)
+        if isinstance(container, BarContainer):
+            axis.bar_label(
+                container,
+                fmt='%.1f',
+                padding=3,
+                fontsize=8
+            )
 
     axis.legend()
-    plt.ylim(0, 110)  # Diamo spazio per le etichette sopra le barre
+    plt.ylim(0, 110)
     plt.tight_layout()
     filename = "confronto_totale_ml.png"
     save_path = save_plot(filename)

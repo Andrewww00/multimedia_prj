@@ -11,10 +11,10 @@ from keras.models import load_model
 from keras.optimizers import Adam
 from keras.layers import BatchNormalization
 
-ML = False
-CROSS_VALIDATION = False
+ML = True
+CROSS_VALIDATION = True
 CNN = False
-TRANSFER_LEARNING = True
+TRANSFER_LEARNING = False
 
 # Modelli senza cross validation
 model_paths = {
@@ -37,7 +37,6 @@ if __name__ == "__main__":
 
         # TRAIN
         models = ["logistic_reg", "random_forest"]
-        score = []
         results = {}
 
         for model in models:
@@ -54,10 +53,12 @@ if __name__ == "__main__":
 
             if CROSS_VALIDATION:
                 model_path = cv_model_paths[model]
+                metrics_path = MODELS_DIR / f"{model}_cv_metrics.json"
                 trained_model = load_ml_model(model_path)
-                if trained_model is None:
+
+                if trained_model is None or not metrics_path.exists():
                     print(f"Alleno {model} con cross validation")
-                    cv_scores, trained_model = cross_validate_model(
+                    cv_metrics, trained_model = cross_validate_model(
                         model_type=model,
                         X=X_train,
                         y=y_train,
@@ -66,12 +67,30 @@ if __name__ == "__main__":
                     )
                     save_ml_model(trained_model, model_path)
                     print(f"{model} salvato.")
+
+                    print(f"\n--- Risultati Cross Validation: {model.upper()} ---")
+                    model_results = {"means": [], "ci": []}
+
+                    for metric in ["accuracy", "precision", "recall", "f1"]:
+                        scores_percent = [s * 100 for s in cv_metrics[metric]]
+                        mean_val, err_val = mt.calc_conf_interval(scores_percent)
+
+                        print(f"{metric.capitalize():<10}: {mean_val:.2f}% ± {err_val:.2f}%")
+
+                        model_results["means"].append(mean_val)
+                        model_results["ci"].append(err_val)
+
+                    # Salvataggio  metriche
+                    with open(metrics_path, "w") as f:
+                        json.dump(model_results, f)
+                        
                 else:
                     print(f"{model} già allenato. Caricamento completato.")
-
-                mt.evaluate_and_plot_model(
-                    model, trained_model, X_test, y_test, results
-                )
+                    with open(metrics_path, "r") as f:
+                        model_results = json.load(f)
+                        
+                results[model] = model_results
+                mt.evaluate_and_plot_model(model, trained_model, X_test, y_test, model_results)
 
             # No cross validation
             else:
@@ -90,9 +109,7 @@ if __name__ == "__main__":
                 else:
                     print(f"{model} già allenato. Caricamento completato.")
 
-                mt.evaluate_and_plot_model(
-                    model, trained_model, X_test, y_test, results
-                )
+                results[model] = mt.evaluate_and_plot_model(model, trained_model, X_test, y_test, model_results)
 
         mt.plot_models_comparison(results)
 
@@ -229,7 +246,7 @@ if __name__ == "__main__":
 
         if TL_MODEL_PATH.exists():
             print("CNN con transfer learning già allenata. Caricamento modello...")
-            model = load_model(TL_MODEL_PATH)
+            model = load_model(TL_MODEL_PATH, safe_mode=False)
 
             if TL_HISTORY_PATH.exists():
                 try:

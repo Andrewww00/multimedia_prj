@@ -10,8 +10,20 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from joblib import Memory
 from script.load_datasets import compose_dataset
 from script.deep_models import dl_parameter_search
+
+CACHE_DIR = "pipeline_cache"
+memory = Memory(location=CACHE_DIR, verbose=0)
+
+# Numero di processi paralleli per GridSearchCV. NON uso -1 (tutti i core)
+# perche' con Random Forest + PCA in parallelo su piu' processi la RAM totale
+# richiesta si moltiplica per il numero di processi: troppi in parallelo
+# saturano la memoria e l'OS uccide i worker (SIGKILL/OOM). Uso 1/4 dei core
+# per lasciare piu' margine quando capitano combinazioni pesanti.
+SAFE_N_JOBS = max(1, (os.cpu_count() or 4) // 4)
 
 gpus = tf.config.list_physical_devices('GPU')
 if gpus:
@@ -113,20 +125,28 @@ def grid_search(model_type, X_train, y_train, X_val=None, y_val=None):
         if model_type == "logistic_reg":
             pipeline = Pipeline([
                 ('scaler', StandardScaler()),
+                ('pca', PCA(random_state=42, svd_solver='randomized')),
                 ('clf', LogisticRegression(
-                    solver='saga', max_iter=300, tol=1e-2, random_state=42))
-            ])
+                    solver='lbfgs', max_iter=1000, random_state=42))
+            ], memory=memory)
             param_grid = {
-                'clf__C': [0.1, 1.0, 10.0],
-                'clf__l1_ratio': [0.0, 1.0]
+                "pca__n_components": [100, 300, 600, 1000],
+                "pca__whiten": [False, True],
+                "clf__C": [0.001, 0.01, 0.1, 1, 10],
+                "clf__tol": [1e-3, 1e-4, 1e-5]
             }
 
         elif model_type == "random_forest":
-            pipeline = RandomForestClassifier(random_state=42, n_jobs=-1)
+            pipeline = Pipeline([
+                ('pca', PCA(random_state=42, svd_solver='randomized')),
+                ('clf', RandomForestClassifier(random_state=42, n_jobs=1))
+            ], memory=memory)
             param_grid = {
-                'n_estimators': [100, 200, 300],
-                'max_depth': [None, 10, 20],
-                'min_samples_split': [2, 5, 10]
+                'pca__n_components': [100, 300, 600],
+                'clf__n_estimators': [100, 200, 300],
+                'clf__max_depth': [10, 20, 30],
+                'clf__min_samples_split': [2, 5, 10],
+                'clf__min_samples_leaf': [1, 2, 4]
             }
         else:
             raise ValueError(
@@ -137,7 +157,8 @@ def grid_search(model_type, X_train, y_train, X_val=None, y_val=None):
             param_grid=param_grid,
             cv=skf,
             scoring='f1_weighted',
-            n_jobs=-1,
+            n_jobs=SAFE_N_JOBS,
+            pre_dispatch='2*n_jobs',
             verbose=2
         )
 
@@ -164,7 +185,7 @@ def grid_search(model_type, X_train, y_train, X_val=None, y_val=None):
 
 if __name__ == "__main__":
     # Opzioni: "logistic_reg", "random_forest", "cnn", "transfer_learning"
-    MODEL_TO_TUNE = "transfer_learning"
+    MODEL_TO_TUNE = "logistic_reg"
 
     is_deep_learning = MODEL_TO_TUNE in ["cnn", "transfer_learning"]
 
